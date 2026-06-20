@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScriptPro Imóveis</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  body { background:#09090b; font-family:Inter; color:#fff }
+  .glass { background:rgba(24,24,27,.6); backdrop-filter:blur(10px); border:1px solid #27272a }
+  .hidden-view { display:none }
+  .fade { animation:fade .4s }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+</style>
+</head>
+
+<body class="p-6">
+
+<!-- ====== TELA DE LOGIN ====== -->
+<div id="login-screen" class="hidden-view fade">
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="glass p-8 rounded-2xl w-full max-w-sm space-y-6 text-center">
+      <h1 class="text-3xl font-bold">ScriptPro <span class="text-green-400">Imóveis</span></h1>
+      <p class="text-zinc-400 text-sm">Acesso restrito a corretores autorizados</p>
+
+      <div class="space-y-3">
+        <input
+          id="login-senha"
+          type="password"
+          placeholder="Digite sua senha de acesso"
+          class="w-full p-3 bg-zinc-900 rounded-lg border border-zinc-700 focus:border-green-400 outline-none text-center tracking-widest"
+          onkeydown="if(event.key==='Enter') fazerLogin()"
+        >
+        <p id="login-erro" class="text-red-400 text-sm hidden-view">Senha incorreta. Tente novamente.</p>
+        <button
+          onclick="fazerLogin()"
+          id="btn-login"
+          class="w-full bg-green-500 hover:bg-green-400 p-3 rounded-lg font-bold transition"
+        >
+          Entrar
+        </button>
+      </div>
+
+      <p class="text-zinc-600 text-xs">ScriptPro © 2025 · Reino Digital</p>
+    </div>
+  </div>
+</div>
+
+<!-- ====== APP PRINCIPAL ====== -->
+<div id="app-screen" class="hidden-view fade">
+  <div class="max-w-5xl mx-auto space-y-6">
+
+    <div class="flex items-center justify-between">
+      <h1 class="text-4xl font-bold text-center flex-1">
+        ScriptPro <span class="text-green-400">Imóveis</span>
+      </h1>
+      <button onclick="sair()" class="text-zinc-500 hover:text-red-400 text-sm transition">Sair</button>
+    </div>
+
+    <!-- FORM -->
+    <div id="view-form" class="glass p-6 rounded-xl space-y-6">
+      <div class="grid md:grid-cols-2 gap-4">
+        <input id="f-type" placeholder="Tipo do imóvel" class="p-3 bg-zinc-900 rounded">
+        <input id="f-location" placeholder="Localização" class="p-3 bg-zinc-900 rounded">
+        <input id="f-price" placeholder="Preço" class="p-3 bg-zinc-900 rounded">
+        <input id="f-area" placeholder="Área (m²)" class="p-3 bg-zinc-900 rounded">
+        <input id="f-beds" placeholder="Quartos" class="p-3 bg-zinc-900 rounded">
+        <input id="f-baths" placeholder="Banheiros" class="p-3 bg-zinc-900 rounded">
+
+        <select id="f-client" class="p-3 bg-zinc-900 rounded">
+          <option value="luxo">Alto padrão</option>
+          <option value="familia">Família</option>
+          <option value="investidor">Investidor</option>
+        </select>
+
+        <select id="f-tone" class="p-3 bg-zinc-900 rounded">
+          <option value="leve">Leve</option>
+          <option value="medio">Persuasivo</option>
+          <option value="agressivo">Alta conversão</option>
+        </select>
+      </div>
+
+      <textarea id="f-features" class="w-full p-3 bg-zinc-900 rounded" placeholder="Diferenciais do imóvel"></textarea>
+
+      <div>
+        <p class="text-sm mb-2 text-zinc-400">Fotos do imóvel</p>
+        <div id="dropzone" class="border-2 border-dashed border-zinc-700 p-6 text-center rounded cursor-pointer hover:border-green-400">
+          Clique ou arraste imagens
+        </div>
+        <div id="preview" class="grid grid-cols-3 gap-2 mt-4"></div>
+      </div>
+
+      <div class="flex gap-4">
+        <button onclick="generate('sales')" class="flex-1 bg-green-500 p-3 rounded font-bold">Gerar Roteiro de Venda</button>
+        <button onclick="generate('reels')" class="flex-1 bg-zinc-700 p-3 rounded">Gerar Reels</button>
+        <button onclick="generate('olx')" class="flex-1 bg-blue-500 p-3 rounded font-bold">Gerar Anúncio OLX</button>
+      </div>
+    </div>
+
+    <!-- LOADING -->
+    <div id="view-loading" class="hidden-view text-center">
+      <p class="text-xl">IA analisando imóvel...</p>
+    </div>
+
+    <!-- RESULT -->
+    <div id="view-result" class="hidden-view glass p-6 rounded-xl">
+      <div id="result-content"></div>
+      <button onclick="showView('form')" class="mt-6 bg-zinc-700 p-3 rounded w-full">Voltar</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+lucide.createIcons();
+
+// ====== AUTH ======
+async function verificarToken() {
+  const token = sessionStorage.getItem("sp_token");
+  if (!token) {
+    mostrarLogin();
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      mostrarApp();
+    } else {
+      sessionStorage.removeItem("sp_token");
+      mostrarLogin();
+    }
+  } catch {
+    mostrarLogin();
+  }
+}
+
+async function fazerLogin() {
+  const senha = document.getElementById("login-senha").value;
+  const btn = document.getElementById("btn-login");
+  const erro = document.getElementById("login-erro");
+
+  if (!senha) return;
+
+  btn.textContent = "Verificando...";
+  btn.disabled = true;
+  erro.classList.add("hidden-view");
+
+  try {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senha })
+    });
+    const data = await res.json();
+
+    if (data.ok && data.token) {
+      sessionStorage.setItem("sp_token", data.token);
+      mostrarApp();
+    } else {
+      erro.classList.remove("hidden-view");
+      btn.textContent = "Entrar";
+      btn.disabled = false;
+    }
+  } catch {
+    erro.classList.remove("hidden-view");
+    btn.textContent = "Entrar";
+    btn.disabled = false;
+  }
+}
+
+function sair() {
+  sessionStorage.removeItem("sp_token");
+  mostrarLogin();
+}
+
+function mostrarLogin() {
+  document.getElementById("login-screen").classList.remove("hidden-view");
+  document.getElementById("app-screen").classList.add("hidden-view");
+}
+
+function mostrarApp() {
+  document.getElementById("login-screen").classList.add("hidden-view");
+  document.getElementById("app-screen").classList.remove("hidden-view");
+}
+
+// Inicializa
+verificarToken();
+
+// ====== UPLOAD ======
+let images = [];
+const dropzone = document.getElementById('dropzone');
+const preview = document.getElementById('preview');
+
+dropzone.addEventListener('click', () => {
+  let input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.accept = 'image/*';
+  input.onchange = e => handleFiles(e.target.files);
+  input.click();
+});
+
+dropzone.addEventListener('dragover', e => e.preventDefault());
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files) {
+  for (let file of files) {
+    let reader = new FileReader();
+    reader.onload = e => {
+      images.push(e.target.result);
+      let img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = "rounded h-24 w-full object-cover";
+      preview.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// ====== VIEWS ======
+function showView(v) {
+  document.getElementById('view-form').classList.add('hidden-view');
+  document.getElementById('view-loading').classList.add('hidden-view');
+  document.getElementById('view-result').classList.add('hidden-view');
+  document.getElementById('view-' + v).classList.remove('hidden-view');
+}
+
+// ====== GENERATE ======
+async function generate(type) {
+  const data = {
+    tipo: document.getElementById('f-type').value,
+    local: document.getElementById('f-location').value,
+    preco: document.getElementById('f-price').value,
+    quartos: document.getElementById('f-beds').value,
+    banheiros: document.getElementById('f-baths').value,
+    area: document.getElementById('f-area').value,
+    diferenciais: document.getElementById('f-features').value
+  };
+
+  showView('loading');
+
+  try {
+    const response = await fetch("/api/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, tipoGeracao: type })
+    });
+
+    let result;
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      result = await response.json();
+    } else {
+      const text = await response.text();
+      throw new Error(text);
+    }
+
+    document.getElementById("result-content").innerText =
+      result?.roteiro || JSON.stringify(result);
+
+    showView('result');
+  } catch (error) {
+    alert("Erro: " + error.message);
+    showView('form');
+  }
+}
+
+function f(id) { return document.getElementById(id).value; }
+</script>
+
+</body>
+</html>
